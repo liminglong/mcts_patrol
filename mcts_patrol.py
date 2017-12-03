@@ -296,8 +296,10 @@ def ROLLOUT(node, intruder):
 
 #只需要node_0和node_1当中的所有的机器人的位置都有一一相等的，不用顺序相等。    　　　　        
 def STATUS_EQUAL(node_0, node_1):
-    pass
-        　　　　        
+    poses_0 = node_0.poses
+    poses_1 = node_1.poses
+    
+    for i in len(poses_0)#TODO
     　　　　        
 def BACKPROPAGATION(leaf_node, reward):
     leaf_node.update(reward)

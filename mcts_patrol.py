@@ -28,23 +28,23 @@ class Map():
      
     def obstacles_in_map():
         temp_obstacles = []
-        for(i in range(self.horizontal_length))
-            for(j in range(self.vertical_length))
-                if(self.map[i, j] == 1)
+        for(i in range(self.horizontal_length)):
+            for(j in range(self.vertical_length)):
+                if(self.map[i, j] == 1):
                     temp_obstacles.append([i,j])
         return temp_obstacles
         
     def random_pose_without_obstacles():
         obstacles = self.obstacles_in_map()
-        while(True)
+        while(True):
             temp_x = random.randint(0, self.horizontal_length-1)
             temp_y = random.randint(0, self.vertical_length-1)
             obstacle_flag = False
-            for i in range(len(obstacles))
-                if(obstacles[i] == [temp_x, temp_y])
+            for i in range(len(obstacles)):
+                if(obstacles[i] == [temp_x, temp_y]):
                     obstacle_flag = True
                     break
-            if(obstacle_flag == False)
+            if(obstacle_flag == False):
                 return [temp_x, temp_y]    
                
     def change_scale(self):
@@ -107,44 +107,45 @@ class Node():
         self.parent = parent	
         self.time_step = time_step
         self.is_cyclic_arm = False
-        if(time_step == None)
+        self.cyclic_head = Node()
+        if(time_step == None):
             time_step = 0#default parameter
-        if(map == None)
+        if(map == None):
             map = Map()#default parameter      
     
     def check_and_add_child(self,child_actions=[]):
         #temp_actions = []#temp_actions是个一维数组，维度是robot_num
         temp_poses = []#temp_poses是个二维数组,第一个维度是robot_num    
-        for(i = 0; i < ROBOT_NUM; i+=1)
-            for(j = 0; j < 4; j+=1)#up, down, left, right
-                if(j == 0)#up
+        for(i = 0; i < ROBOT_NUM; i+=1):
+            for(j = 0; j < 4; j+=1):#up, down, left, right
+                if(j == 0):#up
                     temp_poses[i][0] = self.poses[0] 
                     temp_poses[i][1] = self.poses[1] - 1
-                if(j == 1)#down
+                if(j == 1):#down
                     temp_poses[i][0] = self.poses[0] 
                     temp_poses[i][1] = self.poses[1] + 1
-                if(j == 2)#left
+                if(j == 2):#left
                     temp_poses[i][0] = self.poses[0] - 1
                     temp_poses[i][1] = self.poses[1] 
-                if(j == 3)#right
+                if(j == 3):#right
                     temp_poses[i][0] = self.poses[0] + 1
                     temp_poses[i][1] = self.poses[1]                                   
         bool bump_flag = False#bump into obstacles, or bump into boundings
-        for(i = 0; i < ROBOT_NUM; i+=1)                  
-            if(temp_poses[i][0] == -1 or temp_poses[i][0] == self.map.horizontal_length)#bump into left or right boundings
+        for(i = 0; i < ROBOT_NUM; i+=1):                  
+            if(temp_poses[i][0] == -1 or temp_poses[i][0] == self.map.horizontal_length):#bump into left or right boundings
                 bump_flag = True
                 break
-            if(temp_poses[i][1] == -1 or temp_poses[i][1] == self.map.vertical_length)#bump into up or down boundings
+            if(temp_poses[i][1] == -1 or temp_poses[i][1] == self.map.vertical_length):#bump into up or down boundings
                 bump_flag = True
                 break
-            else
+            else:
                 obstacles = self.map.obstacles_in_map()#a list storing the coordinates of the obstacles
-                for(j in range(len(obstacles)))
-                    if(temp_poses[i][0] == obstacles[j][0] and temp_poses[i][1] == obstacles[j][1])
+                for(j in range(len(obstacles))):
+                    if(temp_poses[i][0] == obstacles[j][0] and temp_poses[i][1] == obstacles[j][1]):
                         bump_flag == True
                         break
                 break
-        if(not bump_flag)
+        if(not bump_flag):
             child.time_step = self.time_step + 1
             child = Node(actions = child_actions, poses = temp_poses, parent = self, time_step = self.time_step + 1)
             self.children.apend(child)       
@@ -159,11 +160,31 @@ class Node():
         w_pi = self.reward
         return w_pi + SCALAR * math.sqrt(math.log(visits_parent/visits_children))
     
-    def create_cyclic_sibling_arm(self):
-        pass
+    def create_cyclic_sibling_arm(self, temp_cyclic_head):
+        temp_parent = self.parent
+        temp_node = self
+        temp_node.cyclic_head = temp_cyclic_head
+        temp_node.is_cyclic_arm = True
+        temp_node.visits = 1
+        temp_parent.children.append(temp_node)
     
     def is_cyclic_arm(self):
         return self.is_cyclic_arm
+        
+    def node_equal(self, other):
+        temp_poses = self.poses
+        temp_actions = self.actions
+        temp_time_step = self.time_step
+        
+        other_poses = other.poses
+        other_actions = other.actions
+        other_time_step = other.time_step
+        
+        if(temp_poses==other_poses and temp_actions==other_actions and temp_time_step==other_time_step):
+            return True
+        else: 
+            return False
+        
     
     def is_fully_expanded(self):
         #To be verified: Version 0 of mucts_patrol, all of the nodes are fully expanded
@@ -177,35 +198,34 @@ def SELECT(root):
     temp_node = Node
     temp_ucb = 0
     temp_children = root.children #'children' is a list
-    while(len(temp_children) != 0)
-        for(i = 0; i < len(temp_children); i+=1)
-            if(temp_ucb < temp_chiledren[i].ucb)
+    while(len(temp_children) != 0):
+        for(i = 0; i < len(temp_children); i+=1):
+            if(temp_ucb < temp_chiledren[i].ucb):
                 temp_ucb = temp_children[i].ucb
                 temp_node = temp_children[i]
         temp_children = temp_node.children
-    #TODO:在这里少了一步，就是判断temp_node是不是叶子节点，如果是叶子节点，就不需要ｅｘｐａｎｄ了，直接去ｒｏｌｌｏｕｔ了，直接去ｂａｃｋｐｒｏｐａｇａｔｉｏｎ就行了。
+    #TODO:在这里少了一步，就是判断temp_node是不是终止节点，如果是终止节点，就不需要ｅｘｐａｎｄ了，直接去ｒｏｌｌｏｕｔ了，直接去ｂａｃｋｐｒｏｐａｇａｔｉｏｎ就行了，这个在主逻辑当中去判断。
     return temp_node   
   
 def ITERATIVE_LOOP(temp_node, cycles):
     cycles -= 1
     index = ROBOT_NUM - cycles -1
-    if(cycles==-1)
+    if(cycles==-1):
         return 
-    else
+    else:
         if(cycles == 0)
             for i in range(4):
                 temp_actions[index] = i
                 node.add_child(child_actions = temp_actions);
-        else
+        else:
             for i in range(4):
                 temp_actions[index] = i
                 ITERATIVE_LOOP(temp_node, cycles)
 #fully expand the node        
 def EXPAND(node):
-    ITERATIVE_LOOP(node, ROBOT_NUM)    
-    #TODO:这里应该少一个步骤，ｅｘｐａｎｄ了很多节点之后，要选择这些中的一个返回，作为一个待评估节点。
-　　　　#expand之后是怎么选择的一个呢？  
-　　　　#node = Node(), intruder = StationaryIntruder    
+    ITERATIVE_LOOP(node, ROBOT_NUM)
+    #choose the first child to return    
+    return node.children[0]
 
 def RANDOM_ROLLOUT_FOR_ONE_STEP(actions, poses):
     map = Map()
@@ -217,45 +237,97 @@ def RANDOM_ROLLOUT_FOR_ONE_STEP(actions, poses):
     
     obstacles =  map.obstacles_in_map()
         
-    for i in range(ROBOT_NUM)
-        if(current_actions[i] == 0)#up
+    for i in range(ROBOT_NUM):
+        if(current_actions[i] == 0):#up
             next_poses.append( [current_poses[i][0], current_poses[i][1]-1] )
-        if(current_actions[i] == 1)#down
+        if(current_actions[i] == 1):#down
             next_poses.append( [current_poses[i][0], current_poses[i][1]+1] )                  
-        if(current_actions[i] == 2)#left
+        if(current_actions[i] == 2):#left
             next_poses.append( [current_poses[i][0]-1, current_poses[i][1]] )               
-        if(current_actions[i] == 3)#right
+        if(current_actions[i] == 3):#right
             next_poses.append( [current_poses[i][0]+1, current_poses[i][1]] )        
                    
-    for i in range(ROBOT_NUM)
-        while(True)
+    for i in range(ROBOT_NUM):
+        while(True):
             temp_poses = [0,0]
             random_action = random.randint(0, 3)
-            if(random_action == 0)#up
+            if(random_action == 0):#up
                 temp_poses[0] = next_poses[i][0]
                 temp_poses[1] = next_poses[i][1] - 1
-            if(random_action == 1)#down
+            if(random_action == 1):#down
                 temp_poses[0] = next_poses[i][0]
                 temp_poses[1] = next_poses[i][1] + 1   
-            if(random_action == 2)#left
+            if(random_action == 2):#left
                 temp_poses[0] = next_poses[i][0] - 1
                 temp_poses[1] = next_poses[i][1]         
-            if(random_action == 3)#right
+            if(random_action == 3):#right
                 temp_poses[0] = next_poses[i][0] + 1
                 temp_poses[1] = next_poses[i][1]         
             obstacle_flag == False
-            for j in range(len(obstacles))
-                if(temp_poses == obstacles[j])
+            for j in range(len(obstacles)):
+                if(temp_poses == obstacles[j]):
                     obstacle_flag = True
                     break
-            if(obstacles_flag == False)
+            if(obstacles_flag == False):
                 next_actions.append(random_action)
                 break
     return next_actions, next_poses                        
+
+def PERFORM_CYCLIC_ACTIONS(node, intruder):
+    time_e = intruder.time_e()
+    time_p = intruder.time_p()
+    intruder_pose = intruder.pose()
+    
+    #status of the node to be evaluated
+    temp_time_step = node.time_step
+    #temp_poses = node.poses 
+    
+    #temp_node = node.parent
+    temp_node = node    
+    head_mark_node = node.cyclic_head
+    #arm_mark_node = node
+    
+    poses_buffer = []
+    poses_buffer.append(temp_poses)
+    while(not temp_node.node_equal(head_mark_node)):
+        poses_buffer.apend(temp_node.poses)        
+        temp_node = temp_node.parent
+        
+    index = 0    
+    index_increase_flag = True
+    while(True):
+        win_flag = False
+        for i in range(len(poses_buffer[index])):
+            if poses_buffer[index][i] == intruder_pose:
+                win_flag = True
+                break
+        if temp_time_step < time_e + time_p:
+            if win_flag == True:
+                return 1
+        elif temp_time_step == time_e + time_p:        
+            if win_flag == True:
+                return 1
+            elif win_flag == False:
+                return 0
+        
+        if(index_increase_flag):
+            index +=1
+            temp_time_step+=1
+            if index == len(poses_buffer):
+                index-=1
+                temp_time_step-=1
+                index_increase_flag = False
+        else if(not index_increase_flag):
+            index -= 1
+            temp_time_step+=1
+            if index == -1
+                index+=2
+                index_increase_flag = True
+    #TODO:下午先看这段代码正确性，１２月５日１０点１２分
             
 def ROLLOUT(node, intruder):
     #有两个前提：
-    #第一个前提是当前ｎｏｄｅ上层的ｎｏｄｅ一定不是终止节点，只有当前ｎｏｄｅ和之后的ｎｏｄｅ可能是终止节点。
+    #第一个前提是当前ｎｏｄｅ上层的ｎｏｄｅ一定不是终止节点，ｓｅｌｅｃｔ和ｒｏｌｌｏｕｔ的都不是终止节点，只有当前ｎｏｄｅ和之后的ｎｏｄｅ可能是终止节点。
     #第二个前提是当前ｎｏｄｅ是经过ｅｘｐａｎｄ选出来的唯一一个待评估节点。
     #status of the intruder
     time_e = intruder.time_e()
@@ -269,50 +341,70 @@ def ROLLOUT(node, intruder):
     next_actions = temp_actions
     next_poses = temp_poses
     
-    if(node.is_cyclic_arm() == True)
-        #TODO:perform_cyclic_actions() 
-        #TODO:如果在ｒｏｌｌｏｕｔ当中构造了这个方法，那么就直接调用就好了。
-        win_flag = node.perform_cyclic_actions()
-        if(win_flag)
-            return 1
-        else
-            return 0
-    else
-        while(True)
+    if(node.is_cyclic_arm() == True):
+　　　　　　　　return PERFORM_CYCLIC_ACTIONS(node, intruder)
+    else:
+        while(True):
             win_flag = False
-    　　　　    for i in range(len(next_poses))
-    　　　　        if(next_poses[i] == intruder_pose)
+    　　　　    for i in range(len(next_poses)):
+    　　　　        if(next_poses[i] == intruder_pose):
     　　　　            win_flag = True
     　　　　            break　　　     
     　　　　    #if the intruder completing intruding or capture the intruder
-    　　　　    if((temp_time_step == time_e + time_p)or(win_flag = True))
-    　　　　        if(win_flag)
+    　　　　    if(temp_time_step < time_e + time_p):
+    　　　　        if win_flag == True:
     　　　　            return 1
-    　　　　        else 
+    　　　　    elif((temp_time_step == time_e + time_p):
+    　　　　        if(win_flag == True):
+    　　　　            return 1
+    　　　　        else if(win_flag == False):
     　　　　            return 0
-    　　　　    else        
+    　　　　    else:        
     　　　　        temp_time_step += 1
     　　　　        next_actions, next_poses = RANDOM_ROLLOUT_FOR_ONE_STEP(next_actions, next_poses)
 
-#只需要node_0和node_1当中的所有的机器人的位置都有一一相等的，不用顺序相等。    　　　　        
+def ONE_EQUAL_IN_LIST_DEL(list_0, list_1):
+    equal_flag = False
+    for i in range(len(list_0)):
+        for j in range(len(list_1)):
+            if(list_0[i] == list_1[j]):
+                del list_0[i]
+                del list_1[j]
+                equal_flag = True
+                return list_0, list_1                
+    if(equal_flag == False):
+        list_0[0] = "none"
+        return list_0, list_1
+        
+#只需要node_0和node_1当中的所有的机器人的位置都有一一相等的，不用顺序相等。    　　　
 def STATUS_EQUAL(node_0, node_1):
     poses_0 = node_0.poses
     poses_1 = node_1.poses
-    
-    for i in len(poses_0)#TODO
+    if(len(poses_0) != len(poses_1)):
+        return False
+    else:    
+        equal_flag = False
+        while(True):
+            poses_0, poses_1 = ONE_EQUAL_IN_LIST_DEL(poses_0, poses_1)
+            if(len(poses_0) == 0 and len(poses_1) == 0):
+                return True
+            if(poses_0[0] == "none"):
+                return False
     　　　　        
 def BACKPROPAGATION(leaf_node, reward):
     leaf_node.update(reward)
     temp_node = leaf_node.parent
-    while(temp_node != None)
-        if(STATUS_EQUAL(temp_node, leaf_node))
-            leaf_node.create_cyclic_sibling_arm()#TODO: to be complished
-        else
+    while(temp_node != None):
+        if(STATUS_EQUAL(temp_node, leaf_node)):
+            leaf_node.create_cyclic_sibling_arm(cyclic_head = temp_node)#it is an arm
+        else:
             temp_node = temp_node.parent
             temp_node.update(reward)   
         
 if __name__=="__main__":
     map = Map()
+    #TODO:在这里少了一步，就是判断temp_node是不是终止节点，如果是终止节点，就不需要ｅｘｐａｎｄ了，直接去ｒｏｌｌｏｕｔ了，直接去ｂａｃｋｐｒｏｐａｇａｔｉｏｎ就行了，这个在主逻辑当中去判断。select和ｒｏｌｌｏｕｔ都要判断是不是终止节点。
+    #TODO:2017年１５点４５分，明天开始缕清上面的各个函数，然后开始看主逻辑的代码。
     #node = Node([0,0])
     #child = node.add_child([1,1])
     #print child.parent.actions        

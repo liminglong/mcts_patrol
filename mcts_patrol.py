@@ -223,6 +223,7 @@ def ITERATIVE_LOOP(temp_node, cycles):
                 ITERATIVE_LOOP(temp_node, cycles)
 #fully expand the node        
 def EXPAND(node):
+　　　　#TODO:扩展的时候，根据当前节点扩展，在当前节点动作已经确定的情况之下，下一个节点的位置已经被确定，只是把无碰撞的动作添加进去就好，只有在ｒｏｏｔ的时候可以随便加，因为ｒｏｏｔ本身没有ａｃｔｉｏｎｓ。
     ITERATIVE_LOOP(node, ROBOT_NUM)
     #choose the first child to return    
     return node.children[0]
@@ -403,6 +404,9 @@ def BACKPROPAGATION(leaf_node, reward):
         
 if __name__=="__main__":
     map = Map()
+    intruder = StationaryIntruder()
+    #TODO:初始的机器人的位置是(1, 0), (1, 1)
+    root = Node()
     #TODO:在这里少了一步，就是判断temp_node是不是终止节点，如果是终止节点，就不需要ｅｘｐａｎｄ了，直接去ｒｏｌｌｏｕｔ了，直接去ｂａｃｋｐｒｏｐａｇａｔｉｏｎ就行了，这个在主逻辑当中去判断。select和ｒｏｌｌｏｕｔ都要判断是不是终止节点。
     #TODO:2017年１５点４５分，明天开始缕清上面的各个函数，然后开始看主逻辑的代码。
     #node = Node([0,0])

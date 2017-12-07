@@ -113,7 +113,7 @@ class Node():
         if(map == None):
             map = Map()#default parameter      
     
-    #已经检查过的ｃｈｉｌｄ
+    #已经检查过的child
     def add_child(self, child):
         temp_child = child
         self.children.apend(temp_child)     
@@ -123,6 +123,8 @@ class Node():
         #temp_actions = []#temp_actions是个一维数组，维度是robot_num
         child_poses = []#child_poses是个二维数组,第一个维度是robot_num
         #子节点的位置是由当前节点的动作和位置决定的，子节点对应的各个机器人动作可以指定。    
+        child_poses = NEXT_POSES(self.actions, self.poses)
+        '''
         for(i = 0; i < ROBOT_NUM; i+=1):
             j = self.actions[i]#up, down, left, right
             if(j == 0):#up
@@ -136,10 +138,13 @@ class Node():
                 child_poses[i][1] = self.poses[1] 
             if(j == 3):#right
                 child_poses[i][0] = self.poses[0] + 1
-                child_poses[i][1] = self.poses[1]                 
+                child_poses[i][1] = self.poses[1]    
+        '''             
         #因为self节点的上一层节点在add_child的时候，会检测碰撞，所以，当前节点的poses不会有碰撞。  
         #但是，根据child_poses和指定的child_actions加入grandson节点的poses，就会可能碰撞
         grandson_poses = []
+        grandson_poses = NEXT_POSES(child_actions, child_poses)
+        '''
         for(i = 0; i < ROBOT_NUM; i+=1):
             j = child_actions[i]
             if(j == 0):#up
@@ -154,18 +159,17 @@ class Node():
             if(j == 3):#right
                 grandson_poses[i][0] = child_poses[0] + 1
                 grandson_poses[i][1] = child_poses[1]         
-        
+        '''
         #child节点的位置已经是无碰撞的了，需要用grandson的位置判断是否加入child节点。        
         bump_flag = self.check_bump(grandson_poses)  
-                                  
-
         if(not bump_flag):
             child = Node(actions = child_actions, poses = child_poses, parent = self, time_step = self.time_step + 1)
             self.children.apend(child)       
 
-　　　　def check_and_add_child(self, child_poses=[], child_poses=[]):
-　　　　    #TODO
+　　　　def check_and_add_child(self, child_actions=[], child_poses=[]):
 　　　　    grandson_poses = []
+        grandson_poses = NEXT_POSES(child_actions, child_poses)
+        '''
         for(i = 0; i < ROBOT_NUM; i+=1):
             j = child_actions[i]
             if(j == 0):#up
@@ -180,13 +184,12 @@ class Node():
             if(j == 3):#right
                 grandson_poses[i][0] = child_poses[0] + 1
                 grandson_poses[i][1] = child_poses[1]     
+        '''
 　　　　    bump_flag = self.check_bump(grandson_poses)
 　　　　    if(not bump_flag):
 　　　　        child = Node(actions = child_actions, poses = child_poses, parent = self, time_step = self.time_step + 1)
 　　　　        self.children.apend(child)
 　　　　    
-　　　　    
-
     def check_bump(self, poses):
         bool bump_flag = False#bump into obstacles, or bump into boundings
         for(i = 0; i < ROBOT_NUM; i+=1):                  
@@ -276,10 +279,7 @@ def ITERATIVE_LOOP(temp_node, cycles):
             for i in range(4):
                 temp_actions[index] = i
                 ITERATIVE_LOOP(temp_node, cycles)
-              
-                
-
-                
+                              
 #fully expand the node        
 def EXPAND(node):
 　　　　#TODO:扩展的时候，根据当前节点扩展，在当前节点动作已经确定的情况之下，下一个节点的位置已经被确定，只是把无碰撞的动作添加进去就好，只有在ｒｏｏｔ的时候可以随便加，因为ｒｏｏｔ本身没有ａｃｔｉｏｎｓ。
@@ -287,21 +287,68 @@ def EXPAND(node):
     #choose the first child to return    
     return node.children[0]
 
-def EXPAND_ROOT(root):
-    root_poses = root.poses
-    root_actions = []#root_actions没有保存任何东西
+def NEXT_POSES(actions, poses):
+    child_poses = []
+    for(i = 0; i < ROBOT_NUM; i+=1):
+        j = actions[i]#up, down, left, right
+        if(j == 0):#up
+            child_poses[i][0] = poses[0] 
+            child_poses[i][1] = poses[1] - 1
+        if(j == 1):#down
+            child_poses[i][0] = poses[0] 
+            child_poses[i][1] = poses[1] + 1
+        if(j == 2):#left
+            child_poses[i][0] = poses[0] - 1
+            child_poses[i][1] = poses[1] 
+        if(j == 3):#right
+            child_poses[i][0] = poses[0] + 1
+            child_poses[i][1] = poses[1]      
+    return child_poses 
 
-def ITERATIVE_LOOP_ROOT(root, cycles):
+def ITERATIVE_LOOP_ROOT_CHILD_ACTION(root, cycles, child_poses)
+    cycles -= 1
+    index = ROBOT_NUM - cycles - 1
+    if cycles == -1:
+        return 
+    else:
+        if cycles == 0:
+            for i in range(4):
+                child_actions[index] = i
+                #if bump, not add. if not bump, add.
+                root.check_and_add_child(child_actions, child_poses)            
+        else:
+            for i in range(4):
+                child_actions[index] = i
+                ITERATIVE_LOOP_ROOT_CHILD_ACTION(root, cycles, child_poses)
+
+#root节点的初始化当中，action为空，poses是初始化指定的值。
+def ITERATIVE_LOOP_ROOT_ACTION(root, cycles):
     cycles -= 1
     index = ROBOT_NUM - cycles - 1
     if(cycles == -1):
         return
     else:
         if(cycles == 0):
-            for i in range(4)
-                temp_actions[index] = i
-                node.add_
-#TODO:根据loop的逻辑鞋两个ITERATIVE LOOP
+            for i in range(4):
+                root_actions[index] = i
+                child_poses = NEXT_POSES(root_actions, root.poses)
+                bump_flag = root.check_bump(child_poses)
+                if(bump_flag == False):
+                #TODO:检查合法性，如果不合法，continue。
+                    ITERATIVE_LOOP_ROOT_CHILD_ACIONS(root=root, cycles=ROBOT_NUM, child_poses=child_poses)
+                #node.check_and_add_child(child_actions = temp_actions);
+        else:
+            for i in range(4):
+                root_actions[index] = i
+                ITERATIVE_LOOP(root, cycles)
+
+
+def EXPAND_ROOT(root):
+    ITERATIVE_LOOP_ROOT_ACTION(root, ROBOT_NUM)
+    return root.children[0]
+
+
+#TODO:根据loop的逻辑写两个ITERATIVE LOOP
 def loop(cycles):
     for a0 in range(4):
         for a1 in range(4):
@@ -310,7 +357,8 @@ def loop(cycles):
    　    　　　　    root_actions[1] = a1
    　    　　　　    root_actions[2] = a2
    　    　　　　    root_poses = [[1,1],[2,2]]   　    　　　　    
-   　    　　　　    child_poses = function(root_actions, root_poses);
+   　    　　　　    child_poses = function(root_actions, root_poses)
+                #对于root的话，CHILD_POSES在这里也要检查吗？
    　    　　　　    
                 for b0 in range(4):
                     for b1 in range(4):

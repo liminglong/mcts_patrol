@@ -347,7 +347,7 @@ def EXPAND_ROOT(root):
     ITERATIVE_LOOP_ROOT_ACTION(root, ROBOT_NUM)
     return root.children[0]
 
-
+'''
 #TODO:根据loop的逻辑写两个ITERATIVE LOOP
 def loop(cycles):
     for a0 in range(4):
@@ -383,7 +383,7 @@ def loop(cycles):
                 add_child(root_actions)
                 
                 print root_actions 　
-    
+''' 
 
 def RANDOM_ROLLOUT_FOR_ONE_STEP(actions, poses):
     map = Map()

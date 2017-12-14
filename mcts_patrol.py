@@ -78,7 +78,7 @@ class StationaryIntruder():
     def __init__(self):
         self.time_e = random.randint(2,10)#intruder出现的时刻，从第3个时间步开始计算，０，１时刻，ｉｎｔｒｕｄｅｒ机器人肯定不会出现。
         #从直觉上讲，time_p越大，在一定budget内，捕捉到intruder的概率越大，作者最小设置为９
-        self.time_p = 30#intruder停留的时间为20个时间步。
+        self.time_p = 9#intruder停留的时间为10个时间步。
         self.time_step = self.time_e
         self.map = Map()
         self.pose = self.map.random_pose_without_obstacles()
@@ -122,6 +122,7 @@ class Node():
     
     #根据当前节点的actions和poses算出child_poses,　child_actions经过传参得到,再算出grand_son，检查合法性。
     def check_and_add_child_actions(self,child_actions=[]):
+        global ROBOT_NUM
         #temp_actions = []#temp_actions是个一维数组，维度是robot_num
         child_poses = []#child_poses是个二维数组,第一个维度是robot_num
         #子节点的位置是由当前节点的动作和位置决定的，子节点对应的各个机器人动作可以指定。    
@@ -176,22 +177,28 @@ class Node():
             self.children.append(child)
     
     def check_bump(self, poses):
-        bump_flag = False#bump into obstacles, or bump into boundings
+        global ROBOT_NUM
+        #bump_flag = False#bump into obstacles, or bump into boundings
         for i in range(ROBOT_NUM):
             if(poses[i][0] == -1 or poses[i][0] == self.map.horizontal_length):#bump into left or right boundings
-                bump_flag = True
-                break
+                #bump_flag = True
+                #break
+                return True
             if(poses[i][1] == -1 or poses[i][1] == self.map.vertical_length):#bump into up or down boundings
-                bump_flag = True
-                break
+                #bump_flag = True
+                #break
+                return True
             else:
                 obstacles = self.map.obstacles_in_map()#a list storing the coordinates of the obstacles
                 for j in range(len(obstacles)):
-                    if(poses[i][0] == obstacles[j][0] and poses[i][1] == obstacles[j][1]):
-                        bump_flag == True
-                        break
-                break
-        return bump_flag
+                    if poses[i] == obstacles[j]:
+                    #if(poses[i][0] == obstacles[j][0] and poses[i][1] == obstacles[j][1]):
+                        #bump_flag == True
+                        #break
+                        return True
+                #break
+        #return bump_flag
+        return False
         
     def update(self,reward):
         self.reward+=reward
@@ -241,23 +248,34 @@ def SELECT(root):
     global_ucb = 0
     temp_ucb = 0
     temp_children = root.children #'children' is a list
-    print "SELECT 1"
+    #print "244: SELECT 1"
     while(len(temp_children) != 0):
+        #print "246: SELECT while"
         for i in range(len(temp_children)):
+            '''
+            print "248: SELECT for"
+            print "temp_ucb: "
+            print temp_children[i].parent.visits
+            print temp_children[i].visits
+            print temp_children[i].reward
+            '''            
             temp_ucb = temp_children[i].ucb()
-            if(global_ucb < temp_ucb):
-                print "SELECT if"
+            #print temp_ucb
+            if(global_ucb < temp_ucb or global_ucb == temp_ucb):
+                #print "SELECT if"
                 global_ucb = temp_ucb
                 selected_node = temp_children[i]
         #如果始终找不到比当前ｕｃｂ还小的，那么temp_children应该就是不发生变化的？
         #print "SELECT 2"        
         temp_children = selected_node.children#TODO:还是这里存在问题，一直下去肯定是一个Ｎｏｎｅ。２１点４２分。
-        temp_ucb = 0
+        #len(temp_children)　等于０的时候不就跳出了吗？此时Ｓｅｌｅｃｔｅｄ应该不是０啊。
+        global_ucb = 0#TODO:这里对吗？很有可能是个雷啊。
         #print "len(temp_children):"
         #print len(temp_children)
     return selected_node   
   
 def ITERATIVE_LOOP(temp_node, cycles, temp_actions):
+    global ROBOT_NUM
     cycles -= 1
     index = ROBOT_NUM - cycles -1
  
@@ -275,6 +293,7 @@ def ITERATIVE_LOOP(temp_node, cycles, temp_actions):
                               
 #fully expand the node
 def EXPAND(node):
+    global ROBOT_NUM
     temp_actions = []
     for i in range(ROBOT_NUM):
         temp_actions.append(-1)   
@@ -294,19 +313,20 @@ def NEXT_POSES(actions, poses):
         j = actions[i]#up, down, left, right
         if(j == 0):#up
             child_poses[i][0] = poses[i][0] 
-            child_poses[i][1] = poses[i][1] - 1
+            child_poses[i][1] = poses[i][1] + 1
         if(j == 1):#down
             child_poses[i][0] = poses[i][0] 
-            child_poses[i][1] = poses[i][1] + 1
+            child_poses[i][1] = poses[i][1] - 1
         if(j == 2):#left
             child_poses[i][0] = poses[i][0] - 1
             child_poses[i][1] = poses[i][1] 
         if(j == 3):#right
             child_poses[i][0] = poses[i][0] + 1
-            child_poses[i][1] = poses[i][1]      
+            child_poses[i][1] = poses[i][1]  
     return child_poses 
 
 def ITERATIVE_LOOP_ROOT_CHILD_ACTION(root, cycles, child_poses, child_actions):
+    global ROBOT_NUM
     cycles -= 1
     index = ROBOT_NUM - cycles - 1
 
@@ -325,6 +345,7 @@ def ITERATIVE_LOOP_ROOT_CHILD_ACTION(root, cycles, child_poses, child_actions):
 
 #root节点的初始化当中，action为空，poses是初始化指定的值。
 def ITERATIVE_LOOP_ROOT_ACTION(root, cycles, root_actions):
+    global ROBOT_NUM
     cycles -= 1
     index = ROBOT_NUM - cycles - 1
     count_num = 0
@@ -368,6 +389,7 @@ def ITERATIVE_LOOP_ROOT_ACTION(root, cycles, root_actions):
                 ITERATIVE_LOOP_ROOT_ACTION(root, cycles, root_actions)
 
 def EXPAND_ROOT(root):
+    global ROBOT_NUM
     root_actions = []
     for i in range(ROBOT_NUM):
         root_actions.append(-1)
@@ -414,6 +436,7 @@ def loop(cycles):
 ''' 
 
 def RANDOM_ROLLOUT_FOR_ONE_STEP(actions, poses):
+    global ROBOT_NUM
     map = Map()
     current_actions = actions
     current_poses = poses
@@ -436,19 +459,19 @@ def RANDOM_ROLLOUT_FOR_ONE_STEP(actions, poses):
     for i in range(ROBOT_NUM):
         while(True):
             temp_poses = [0,0]
-            random_action = random.randint(0, 3)
+            random_action = random.randint(0, 3)            
             if(random_action == 0):#up
                 temp_poses[0] = next_poses[i][0]
-                temp_poses[1] = next_poses[i][1] - 1
+                temp_poses[1] = next_poses[i][1] + 1
             if(random_action == 1):#down
                 temp_poses[0] = next_poses[i][0]
-                temp_poses[1] = next_poses[i][1] + 1   
+                temp_poses[1] = next_poses[i][1] - 1   
             if(random_action == 2):#left
                 temp_poses[0] = next_poses[i][0] - 1
                 temp_poses[1] = next_poses[i][1]         
             if(random_action == 3):#right
                 temp_poses[0] = next_poses[i][0] + 1
-                temp_poses[1] = next_poses[i][1]         
+                temp_poses[1] = next_poses[i][1]
             obstacle_flag = False
             for j in range(len(obstacles)):
                 if(temp_poses == obstacles[j]):
@@ -570,8 +593,14 @@ def ONE_EQUAL_IN_LIST_DEL(list_0, list_1):
         
 #只需要node_0和node_1当中的所有的机器人的位置都有一一相等的，不用顺序相等。    　　　
 def STATUS_EQUAL(node_0, node_1):
-    poses_0 = node_0.poses
-    poses_1 = node_1.poses
+    global ROBOT_NUM
+    poses_0 = []
+    poses_1 = []
+    for i in range(ROBOT_NUM):
+        poses_0.append(node_0.poses[i])
+        poses_1.append(node_1.poses[i])
+    #poses_0 = node_0.poses
+    #poses_1 = node_1.poses
     if(len(poses_0) != len(poses_1)):
         return False
     else:    
@@ -582,6 +611,7 @@ def STATUS_EQUAL(node_0, node_1):
                 return True
             if(poses_0[0] == "none"):
                 return False
+                #TODO:对应的ｉ个机器人的概念在这里没有考虑，索引号没有加进来。
                 
 def BACK_PROPAGATION(leaf_node, reward):
     leaf_node.update(reward)
@@ -589,11 +619,10 @@ def BACK_PROPAGATION(leaf_node, reward):
     while(True):
         if(STATUS_EQUAL(temp_node, leaf_node)):
             leaf_node.create_cyclic_sibling_arm(cyclic_head = temp_node)#it is an arm
+        temp_node.update(reward)
         temp_node = temp_node.parent
         if temp_node == None:
             break
-        else:
-            temp_node.update(reward)#TODO:temp_node在这里是有可能等于None的。
 
 def IS_INTRUDER_CAPTURED(node, intruder):
     temp_poses = node.poses;
@@ -612,22 +641,32 @@ def IS_INTRUDER_CAPTURED(node, intruder):
 if __name__=="__main__":
     map = Map()
     intruder = StationaryIntruder()
-    BUDGET = 1000000;
+    BUDGET = 100000;
     reward = 0.0;
     #初始的机器人的位置是(1, 0), (1, 1)
     root = Node(actions = None, poses = [[1,0],[1,1]], parent = None, time_step = 0, map = map)    
     print "Hello 1"
     EXPAND_ROOT(root)   
     #print len(root.children)
+    print len(root.children)
+    for i in range(len(root.children)):
+        print root.children[i].poses
+        print root.children[i].actions
+    
+    
+    
+    '''
     cycle_count = 0
     print "Hello 2"
     while(cycle_count < BUDGET):
         print "Hello 3"
         leaf_node = SELECT(root)#TODO:这里需要判断node是不是时间终止节点。
-        print "leaf_node.actions: "
+        
+        print "639, leaf_node.actions: "
         print leaf_node.actions
-        print "leaf_node.poses: "
-        print leaf_node.poses        
+        print "641, leaf_node.poses: "
+        print leaf_node.poses
+            
         print "Hello 4"
         if leaf_node.time_step == intruder.time_e + intruder.time_p:
             print "Hello 5"
@@ -643,12 +682,18 @@ if __name__=="__main__":
                 reward = ROLLOUT(leaf_node, intruder)
                 BACK_PROPAGATION(leaf_node, reward)
             else:
+                
                 print "Hello 8"
-                print "leaf_node.actions: "
+                
+                print "664, leaf_node.actions: "
                 print leaf_node.actions
-                print "leaf_node.poses: "
+                print "666, leaf_node.poses: "
                 print leaf_node.poses
-                added_node = EXPAND(leaf_node)
+                
+
+                added_node = EXPAND(leaf_node)#TODO:测试过程中，这一步极其花费时间。？？？？？？？？
+                #TODO：leaf_node是不是一定不是cyclic arm？？？？？？？？？？？
+                print len(leaf_node.children)#只有12的是肯定不对的。
                 print "Hello 9"
                 reward = ROLLOUT(added_node, intruder)
                 print "Hello 10"
@@ -660,6 +705,7 @@ if __name__=="__main__":
         print "cycle_count :"
         print cycle_count
         cycle_count += 1
+        '''
 
     
     

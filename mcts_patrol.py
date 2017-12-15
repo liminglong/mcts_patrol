@@ -7,6 +7,7 @@ __date__ = 'Nov. 2017'
 import numpy as np
 import random
 import math
+import copy
 
 ''' A Python program using MCTS-UC (Monte Carlo Tree Search with useful cycles) for multi-robot patrol.'''
 
@@ -166,14 +167,18 @@ class Node():
         #child节点的位置已经是无碰撞的了，需要用grandson的位置判断是否加入child节点。        
         bump_flag = self.check_bump(grandson_poses)  
         if(not bump_flag):
-            child = Node(actions = child_actions, poses = child_poses, parent = self, time_step = self.time_step + 1)
+            temp_child_actions = copy.deepcopy(child_actions)
+            temp_child_poses = copy.deepcopy(child_poses)
+            child = Node(actions = temp_child_actions, poses = temp_child_poses, parent = self, time_step = self.time_step + 1)
             self.children.append(child)
 
     def check_and_add_child_actions_poses(self, child_actions, child_poses):
         grandson_poses = NEXT_POSES(child_actions, child_poses)
         bump_flag = self.check_bump(grandson_poses)
         if(not bump_flag):
-            child = Node(actions = child_actions, poses = child_poses, parent = self, time_step = self.time_step + 1)
+            temp_child_actions = copy.deepcopy(child_actions)
+            temp_child_poses = copy.deepcopy(child_poses)
+            child = Node(actions = temp_child_actions, poses = temp_child_poses, parent = self, time_step = self.time_step + 1)
             self.children.append(child)
     
     def check_bump(self, poses):
@@ -647,15 +652,16 @@ if __name__=="__main__":
     root = Node(actions = None, poses = [[1,0],[1,1]], parent = None, time_step = 0, map = map)    
     print "Hello 1"
     EXPAND_ROOT(root)   
+    '''
     #print len(root.children)
     print len(root.children)
     for i in range(len(root.children)):
         print root.children[i].poses
         print root.children[i].actions
-    
-    
-    
     '''
+    
+    
+    
     cycle_count = 0
     print "Hello 2"
     while(cycle_count < BUDGET):
@@ -705,7 +711,7 @@ if __name__=="__main__":
         print "cycle_count :"
         print cycle_count
         cycle_count += 1
-        '''
+        
 
     
     

@@ -55,16 +55,21 @@ class Node():
         if(not bump_flag):
             #print child_actions
             #print child_poses
-            child = Node(actions = child_actions, poses = child_poses, parent = self, time_step = self.time_step + 1)
+            temp_child_actions = copy.deepcopy(child_actions)
+            temp_child_poses = copy.deepcopy(child_poses)
+            child = Node(actions = temp_child_actions, poses = temp_child_poses, parent = self, time_step = self.time_step + 1)
             '''
             print "child.poses"
             print child.poses
             print "child.actions"
             print child.actions
             '''
+            '''
+            print id(child)
             temp_child = copy.deepcopy(child)
+            print id(temp_child)
             CHILDREN.append(temp_child)
-           
+            '''
             CHILDREN.append(child)
             print "CHILDREN poses: "
             print CHILDREN[COUNT].poses

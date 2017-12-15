@@ -7,6 +7,7 @@ ROBOT_NUM = 2
 GLOBAL_COUNT = 0
 COUNT = 0
 CHILDREN = []
+import copy
 class Map():
     def __init__(self):
         self.map = [[0, 0, 1, 0, 0],
@@ -52,18 +53,26 @@ class Node():
         grandson_poses = NEXT_POSES(child_actions, child_poses)
         bump_flag = self.check_bump(grandson_poses)
         if(not bump_flag):
+            #print child_actions
+            #print child_poses
             child = Node(actions = child_actions, poses = child_poses, parent = self, time_step = self.time_step + 1)
+            '''
             print "child.poses"
             print child.poses
             print "child.actions"
             print child.actions
             '''
-            for i in range(len(self.children)):
-                print self.children[i].poses
-                print self.children[i].actions
-            '''
-            #self.children[COUNT] = child
+            temp_child = copy.deepcopy(child)
+            CHILDREN.append(temp_child)
+           
             CHILDREN.append(child)
+            print "CHILDREN poses: "
+            print CHILDREN[COUNT].poses
+            print "CHILDREN actions"
+            print CHILDREN[COUNT].actions
+            
+            #self.children[COUNT] = child
+            #CHILDREN.insert(COUNT, child)
             #self.children.append(child)
             COUNT+=1
 
@@ -102,9 +111,10 @@ def ITERATIVE_LOOP_ROOT_ACTION(root, cycles, root_actions):
                 if bump_flag == True:
                     pass#检查合法性，如果不合法，continue。
                 elif(bump_flag == False):
-                    temp_child_actions = []
+                    child_actions = []
                     for i in range(ROBOT_NUM):
-                        temp_child_actions.append(-1)
+                        child_actions.append(-1)
+                    temp_child_actions = copy.deepcopy(child_actions)
                     ITERATIVE_LOOP_ROOT_CHILD_ACTION(root=root, cycles=ROBOT_NUM, child_poses=child_poses,child_actions = temp_child_actions)
         else:
             for i in range(4):
@@ -137,7 +147,8 @@ def EXPAND_ROOT(root):
     root_actions = []
     for i in range(ROBOT_NUM):
         root_actions.append(-1)
-    ITERATIVE_LOOP_ROOT_ACTION(root, ROBOT_NUM, root_actions)
+    temp_root_actions = copy.deepcopy(root_actions)
+    ITERATIVE_LOOP_ROOT_ACTION(root, ROBOT_NUM, temp_root_actions)
     #i = random.randint(0, len(root.children)-1)
     #return root.children[i]            
     

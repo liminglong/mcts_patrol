@@ -8,12 +8,13 @@ import numpy as np
 import random
 import math
 import copy
-
+import sys
 ''' A Python program using MCTS-UC (Monte Carlo Tree Search with useful cycles) for multi-robot patrol.'''
 
 ROBOT_NUM = 2;
 #MCTS scalar.  Larger scalar will increase exploitation, smaller will increase exploration. 
 SCALAR= math.sqrt(2.0)
+GLOBAL_ID = 0 #维护一个全局ＩＤ，每个ｎｏｄｅ有且仅有一个独立ＩＤ，包括cyclic_node.
 
 #robot_init_pose: robot_0:[1, 0]; roobt_1:[2, 2]
 #create a map, 0 represents 'free', 1 represents 'obstacle'.  
@@ -100,7 +101,7 @@ class StationaryIntruder():
         return self.pose
 
 class Node():
-    def __init__(self, actions = None, poses = None, parent = None, time_step = None, map = None):
+    def __init__(self, actions = None, poses = None, parent = None, time_step = None, map = None, node_ID = None):
         self.visits = 1#初始化的时候就是为１的，只要ｃｈｉｌｄ被添加上，ｖｉｓｉｔｓ就是１．
         self.reward = 0.0	
         self.children = []
@@ -109,7 +110,9 @@ class Node():
         self.parent = parent	
         self.time_step = time_step
         self.is_cyclic_arm = False
-        self.cyclic_head = None
+        self.cyclic_head_ID = None
+        self.node_ID = node_ID
+        
         if(time_step == None):
             time_step = 0#default parameter
         self.map = map
@@ -118,16 +121,21 @@ class Node():
     
     #已经检查过的child
     def add_child(self, child):
-        temp_child = child
-        self.children.append(temp_child)     
+        global GLOBAL_ID
+        temp_child = copy.deepcopy(child)
+        temp_child.node_ID = GLOBAL_ID
+        self.children.append(temp_child) 
+        GLOBAL_ID += 1    
     
     #根据当前节点的actions和poses算出child_poses,　child_actions经过传参得到,再算出grand_son，检查合法性。
-    def check_and_add_child_actions(self,child_actions=[]):
+    def check_and_add_child_actions(self,child_actions):
         global ROBOT_NUM
+        global GLOBAL_ID
         #temp_actions = []#temp_actions是个一维数组，维度是robot_num
         child_poses = []#child_poses是个二维数组,第一个维度是robot_num
         #子节点的位置是由当前节点的动作和位置决定的，子节点对应的各个机器人动作可以指定。    
-        child_poses = NEXT_POSES(self.actions, self.poses)
+        
+        child_poses = NEXT_POSES(copy.deepcopy(self.actions), copy.deepcopy(self.poses))
         '''
         for(i = 0; i < ROBOT_NUM; i+=1):
             j = self.actions[i]#up, down, left, right
@@ -147,7 +155,8 @@ class Node():
         #因为self节点的上一层节点在add_child的时候，会检测碰撞，所以，当前节点的poses不会有碰撞。  
         #但是，根据child_poses和指定的child_actions加入grandson节点的poses，就会可能碰撞
         grandson_poses = []
-        grandson_poses = NEXT_POSES(child_actions, child_poses)
+        
+        grandson_poses = NEXT_POSES(copy.deepcopy(child_actions), copy.deepcopy(child_poses))
         '''
         for(i = 0; i < ROBOT_NUM; i+=1):
             j = child_actions[i]
@@ -165,21 +174,26 @@ class Node():
                 grandson_poses[i][1] = child_poses[1]         
         '''
         #child节点的位置已经是无碰撞的了，需要用grandson的位置判断是否加入child节点。        
-        bump_flag = self.check_bump(grandson_poses)  
+        bump_flag = self.check_bump(copy.deepcopy(grandson_poses))  
         if(not bump_flag):
             temp_child_actions = copy.deepcopy(child_actions)
             temp_child_poses = copy.deepcopy(child_poses)
             child = Node(actions = temp_child_actions, poses = temp_child_poses, parent = self, time_step = self.time_step + 1)
+            child.node_ID = GLOBAL_ID
             self.children.append(child)
+            GLOBAL_ID +=1
 
     def check_and_add_child_actions_poses(self, child_actions, child_poses):
+        global GLOBAL_ID
         grandson_poses = NEXT_POSES(child_actions, child_poses)
         bump_flag = self.check_bump(grandson_poses)
         if(not bump_flag):
             temp_child_actions = copy.deepcopy(child_actions)
             temp_child_poses = copy.deepcopy(child_poses)
             child = Node(actions = temp_child_actions, poses = temp_child_poses, parent = self, time_step = self.time_step + 1)
+            child.node_ID = GLOBAL_ID
             self.children.append(child)
+            GLOBAL_ID += 1
     
     def check_bump(self, poses):
         global ROBOT_NUM
@@ -215,30 +229,29 @@ class Node():
         w_pi = self.reward
         return w_pi + SCALAR * math.sqrt(math.log(visits_parent/visits_child))
     
-    def create_cyclic_sibling_arm(self, temp_cyclic_head):
+    def create_cyclic_sibling_arm(self, cyclic_head_ID):
+        global GLOBAL_ID
         temp_parent = self.parent
-        temp_node = self
-        temp_node.cyclic_head = temp_cyclic_head
-        temp_node.is_cyclic_arm = True
-        temp_node.visits = 1
-        temp_parent.children.append(temp_node)
+        new_node = copy.deepcopy(self)
+        new_node.cyclic_head_ID = cyclic_head_ID
+        new_node.is_cyclic_arm = True
+        new_node.visits = 1
+        new_node.node_ID = GLOBAL_ID
+        temp_parent.children.append(new_node)
+        GLOBAL_ID += 1
     
     def get_is_cyclic_arm(self):
         return self.is_cyclic_arm
         
     def node_equal(self, other):
-        temp_poses = self.poses
-        temp_actions = self.actions
-        temp_time_step = self.time_step
+        self_node_ID = self.node_ID
+        other_node_ID = other.node_ID
         
-        other_poses = other.poses
-        other_actions = other.actions
-        other_time_step = other.time_step
-        
-        if(temp_poses==other_poses and temp_actions==other_actions and temp_time_step==other_time_step):
+        if(self_node_ID == other_node_ID):
             return True
-        else: 
-            return False        
+        else:
+            return False
+  
     
     def is_fully_expanded(self):
         #To be verified: Version 0 of mucts_patrol, all of the nodes are fully expanded
@@ -247,6 +260,7 @@ class Node():
 #global functions
 #UCT search
 #def SELECT(budget, root):
+#TODO:关于深度拷贝的检查，看到了这里。
 def SELECT(root):
     #pass
     selected_node = Node()
@@ -498,7 +512,9 @@ def PERFORM_CYCLIC_ACTIONS(node, intruder):
     
     #temp_node = node.parent
     temp_node = node    
-    head_mark_node = node.cyclic_head
+    head_mark_node_ID = node.cyclic_head_ID
+    #指针赋值＃TODO: TO BE REVISED>
+    head_mark_node = node
     #arm_mark_node = node
     
     poses_buffer = []
@@ -621,9 +637,11 @@ def STATUS_EQUAL(node_0, node_1):
 def BACK_PROPAGATION(leaf_node, reward):
     leaf_node.update(reward)
     temp_node = leaf_node.parent
+
     while(True):
         if(STATUS_EQUAL(temp_node, leaf_node)):
-            leaf_node.create_cyclic_sibling_arm(cyclic_head = temp_node)#it is an arm
+            temp_node_ID = temp_node.node_ID
+            leaf_node.create_cyclic_sibling_arm(cyclic_head_ID = temp_node_ID)#it is an arm
         temp_node.update(reward)
         temp_node = temp_node.parent
         if temp_node == None:
@@ -649,30 +667,25 @@ if __name__=="__main__":
     BUDGET = 100000;
     reward = 0.0;
     #初始的机器人的位置是(1, 0), (1, 1)
-    root = Node(actions = None, poses = [[1,0],[1,1]], parent = None, time_step = 0, map = map)    
+    root = Node(actions = None, poses = [[1,0],[1,1]], parent = None, time_step = 0, map = map)
+    root.node_ID = -1    
     print "Hello 1"
     EXPAND_ROOT(root)   
-    '''
+    
     #print len(root.children)
-    print len(root.children)
-    for i in range(len(root.children)):
-        print root.children[i].poses
-        print root.children[i].actions
-    '''
-    
-    
+    print len(root.children)  
     
     cycle_count = 0
     print "Hello 2"
     while(cycle_count < BUDGET):
         print "Hello 3"
         leaf_node = SELECT(root)#TODO:这里需要判断node是不是时间终止节点。
-        
+        '''
         print "639, leaf_node.actions: "
         print leaf_node.actions
         print "641, leaf_node.poses: "
         print leaf_node.poses
-            
+        '''    
         print "Hello 4"
         if leaf_node.time_step == intruder.time_e + intruder.time_p:
             print "Hello 5"

@@ -10,6 +10,12 @@ import math
 import copy
 import sys
 ''' A Python program using MCTS-UC (Monte Carlo Tree Search with useful cycles) for multi-robot patrol.'''
+''' This version revised the following aspects:
+    1. Old: expand all children of a node at a time, set initial reward to 1.0. New: expand one child at a time.如果被检查的局面依然存在没有被拓展的子节点(例如说某节点有20个可行动作，但是在搜索树中才创建了19个子节点)，那么我们认为这个节点就是本次迭代的的目标节点N，并找出N还未被拓展的动作A。
+    2. 保持A和B的统一性，以维持收敛性。
+'''
+
+
 
 ROBOT_NUM = 2;
 #MCTS scalar.  Larger scalar will increase exploitation, smaller will increase exploration. 
@@ -17,7 +23,9 @@ ROBOT_NUM = 2;
 SCALAR = math.sqrt(2.0)
 GLOBAL_ID = 0 #维护一个全局ＩＤ，每个ｎｏｄｅ有且仅有一个独立ＩＤ，包括cyclic_node.
 
-NODE_DICT = {}
+
+NODE_DICT = {}#key is node_ID, value is node name.
+CHILDREN_DICT = {}#key is node_ID, value is a list.
 
 CYCLIC_NUM = 0
 NOT_CYCLIC_NUM = 0
@@ -126,7 +134,8 @@ class Node():
         self.is_cyclic_arm = False
         self.cyclic_head_ID = None
         self.node_ID = node_ID
-        
+        self.first_backup_flag = True
+        self.is_fully_expanded = False#TODO:fully_expanded 初始化设置为False
         if(time_step == None):
             time_step = 0#default parameter
         self.map = map
@@ -143,53 +152,33 @@ class Node():
         NODE_DICT[GLOBAL_ID] = temp_child
         GLOBAL_ID += 1    
     
+    def backup_child(self, child):
+        global GLOBAL_ID
+        global NODE_DICT
+        global CHILDREN_DICT
+        temp_child = copy.deepcopy(child)
+        temp_child.node_ID = GLOBAL_ID
+        NODE_DICT[GLOBAL_ID] = temp_child
+        GLOBAL_ID += 1                
+        self_ID = self.node_ID                
+        if self.first_backup_flag == True:
+            CHILDREN_DICT[self_ID] = [temp_child]
+            self.first_backup_flag = False
+        elif self.first_backup_flag == False:
+            CHILDREN_DICT[self_ID].append(temp_child)
+    
     #根据当前节点的actions和poses算出child_poses,　child_actions经过传参得到,再算出grand_son，检查合法性。
     def check_and_add_child_actions(self,child_actions):
         global ROBOT_NUM
         global GLOBAL_ID
-        global NODE_DICT
         #temp_actions = []#temp_actions是个一维数组，维度是robot_num
         child_poses = []#child_poses是个二维数组,第一个维度是robot_num
-        #子节点的位置是由当前节点的动作和位置决定的，子节点对应的各个机器人动作可以指定。    
-        
-        child_poses = NEXT_POSES(copy.deepcopy(self.actions), copy.deepcopy(self.poses))
-        '''
-        for(i = 0; i < ROBOT_NUM; i+=1):
-            j = self.actions[i]#up, down, left, right
-            if(j == 0):#up
-                child_poses[i][0] = self.poses[0] 
-                child_poses[i][1] = self.poses[1] - 1
-            if(j == 1):#down
-                child_poses[i][0] = self.poses[0] 
-                child_poses[i][1] = self.poses[1] + 1
-            if(j == 2):#left
-                child_poses[i][0] = self.poses[0] - 1
-                child_poses[i][1] = self.poses[1] 
-            if(j == 3):#right
-                child_poses[i][0] = self.poses[0] + 1
-                child_poses[i][1] = self.poses[1]    
-        '''             
+        #子节点的位置是由当前节点的动作和位置决定的，子节点对应的各个机器人动作可以指定。           
+        child_poses = NEXT_POSES(copy.deepcopy(self.actions), copy.deepcopy(self.poses))       
         #因为self节点的上一层节点在add_child的时候，会检测碰撞，所以，当前节点的poses不会有碰撞。  
         #但是，根据child_poses和指定的child_actions加入grandson节点的poses，就会可能碰撞
-        grandson_poses = []
-        
+        grandson_poses = []        
         grandson_poses = NEXT_POSES(copy.deepcopy(child_actions), copy.deepcopy(child_poses))
-        '''
-        for(i = 0; i < ROBOT_NUM; i+=1):
-            j = child_actions[i]
-            if(j == 0):#up
-                grandson_poses[i][0] = child.poses[0] 
-                grandson_poses[i][1] = child_poses[1] - 1
-            if(j == 1):#down
-                grandson_poses[i][0] = child_poses[0] 
-                grandson_poses[i][1] = child_poses[1] + 1
-            if(j == 2):#left
-                grandson_poses[i][0] = child_poses[0] - 1
-                grandson_poses[i][1] = child_poses[1] 
-            if(j == 3):#right
-                grandson_poses[i][0] = child_poses[0] + 1
-                grandson_poses[i][1] = child_poses[1]         
-        '''
         #child节点的位置已经是无碰撞的了，需要用grandson的位置判断是否加入child节点。        
         bump_flag = self.check_bump(copy.deepcopy(grandson_poses))  
         if(not bump_flag):
@@ -201,9 +190,37 @@ class Node():
             NODE_DICT[GLOBAL_ID] = child
             GLOBAL_ID +=1
 
+            
+
+    def check_and_backup_child_actions(self, child_actions):
+        global ROBOT_NUM
+        global GLOBAL_ID
+        #temp_actions = []#temp_actions是个一维数组，维度是robot_num
+        child_poses = []#child_poses是个二维数组,第一个维度是robot_num
+        #子节点的位置是由当前节点的动作和位置决定的，子节点对应的各个机器人动作可以指定。           
+        child_poses = NEXT_POSES(copy.deepcopy(self.actions), copy.deepcopy(self.poses))       
+        #因为self节点的上一层节点在add_child的时候，会检测碰撞，所以，当前节点的poses不会有碰撞。  
+        #但是，根据child_poses和指定的child_actions加入grandson节点的poses，就会可能碰撞
+        grandson_poses = []        
+        grandson_poses = NEXT_POSES(copy.deepcopy(child_actions), copy.deepcopy(child_poses))
+        #child节点的位置已经是无碰撞的了，需要用grandson的位置判断是否加入child节点。        
+        bump_flag = self.check_bump(copy.deepcopy(grandson_poses))  
+        if(not bump_flag):
+            temp_child_actions = copy.deepcopy(child_actions)
+            temp_child_poses = copy.deepcopy(child_poses)
+            child = Node(actions = temp_child_actions, poses = temp_child_poses, parent = self, time_step = self.time_step + 1)
+            child.node_ID = GLOBAL_ID
+            NODE_DICT[GLOBAL_ID] = child            
+            GLOBAL_ID +=1        
+            self_ID = self.node_ID                
+            if self.first_backup_flag == True:
+                CHILDREN_DICT[self_ID] = [temp_child]
+                self.first_backup_flag = False
+            elif self.first_backup_flag == False:
+                CHILDREN_DICT[self_ID].append(temp_child)
+                                
     def check_and_add_child_actions_poses(self, child_actions, child_poses):
         global GLOBAL_ID
-        global NODE_DICT
         grandson_poses = NEXT_POSES(child_actions, child_poses)
         bump_flag = self.check_bump(grandson_poses)
         if(not bump_flag):
@@ -214,6 +231,25 @@ class Node():
             self.children.append(child)
             NODE_DICT[GLOBAL_ID] = child
             GLOBAL_ID += 1
+
+    def check_and_backup_child_actions_poses(self, child_actions, child_poses):
+        global GLOBAL_ID
+        grandson_poses = NEXT_POSES(child_actions, child_poses)
+        bump_flag = self.check_bump(grandson_poses)
+        if(not bump_flag):
+            temp_child_actions = copy.deepcopy(child_actions)
+            temp_child_poses = copy.deepcopy(child_poses)
+            child = Node(actions = temp_child_actions, poses = temp_child_poses, parent = self, time_step = self.time_step + 1)
+            child.node_ID = GLOBAL_ID
+            NODE_DICT[GLOBAL_ID] = child
+            GLOBAL_ID += 1       
+            self_ID = self.node_ID                
+            if self.first_backup_flag == True:
+                CHILDREN_DICT[self_ID] = [temp_child]
+                self.first_backup_flag = False
+            elif self.first_backup_flag == False:
+                CHILDREN_DICT[self_ID].append(temp_child) 
+    
     
     def check_bump(self, poses):
         global ROBOT_NUM
@@ -251,7 +287,6 @@ class Node():
     
     def create_cyclic_sibling_arm(self, cyclic_head_ID):
         global GLOBAL_ID
-        global NODE_DICT
         #print "create 1"
         temp_parent = self.parent
         #print "create 6"
@@ -275,6 +310,7 @@ class Node():
     
     def get_is_cyclic_arm(self):
         return self.is_cyclic_arm
+           
         
     def node_equal(self, other):
         self_node_ID = self.node_ID
@@ -292,11 +328,24 @@ class Node():
         if(self_node_ID == other_node_ID):
             return True
         else:
-            return False      
+            return False
 
-    def is_fully_expanded(self):
+    def check_is_fully_expanded(self):
         #To be verified: Version 0 of mucts_patrol, all of the nodes are fully expanded
-        pass       
+        if(self.first_backup_flag == True):
+            print "Error! Check whether fully expanded before backup."
+            sys.exit(1)#异常退出
+        else:
+            expanded_children_len = len(self.children)
+            all_children_len = len(CHILDREN_DICT[self.node_ID])
+            if(expanded_children_len < all_children_len):
+                self.is_fully_expanded = False
+            elif(expanded_children_len = all_children_len):
+                self.is_fully_expanded = True
+            elif(expanded_children_len > all_children_len):
+                print "Error! expanded_children_len should be smaller than all_children_len."
+                sys.exit(1)#异常退出
+            return self.is_fully_expanded
 
 #global functions
 #UCT search
@@ -340,13 +389,14 @@ def ITERATIVE_LOOP(temp_node, cycles, temp_actions):
         if(cycles == 0):
             for i in range(4):
                 temp_actions[index] = i
-                temp_node.check_and_add_child_actions(child_actions = temp_actions);
+                temp_node.check_and_backup_child_actions(child_actions = temp_actions);
         else:
             for i in range(4):
                 temp_actions[index] = i
                 ITERATIVE_LOOP(temp_node, cycles, temp_actions)
                               
 #fully expand the node
+'''
 def EXPAND(node):
     global ROBOT_NUM
     temp_actions = []
@@ -355,6 +405,14 @@ def EXPAND(node):
     ITERATIVE_LOOP(node, ROBOT_NUM, temp_actions)
     i = random.randint(0, len(node.children)-1)
     return node.children[i]
+'''
+
+def BACKUP(node):
+    global ROBOT_NUM
+    temp_actions = []
+    for i in range(ROBOT_NUM):
+        temp_actions.append(-1)
+    ITERATIVE_LOOP(node, ROBOT_NUM, temp_actions)
 
 def NEXT_POSES(actions, poses):
     child_poses = []
@@ -392,7 +450,7 @@ def ITERATIVE_LOOP_ROOT_CHILD_ACTION(root, cycles, child_poses, child_actions):
             for i in range(4):
                 child_actions[index] = i
                 #if bump, not add. if not bump, add.
-                root.check_and_add_child_actions_poses(child_actions, child_poses)            
+                root.check_and_backup_child_actions_poses(child_actions, child_poses)            
         else:
             for i in range(4):
                 child_actions[index] = i
@@ -442,7 +500,7 @@ def ITERATIVE_LOOP_ROOT_ACTION(root, cycles, root_actions):
                 #print "root_actions in else part: "
                 #print root_actions
                 ITERATIVE_LOOP_ROOT_ACTION(root, cycles, root_actions)
-
+'''
 def EXPAND_ROOT(root):
     global ROBOT_NUM
     root_actions = []
@@ -451,6 +509,14 @@ def EXPAND_ROOT(root):
     ITERATIVE_LOOP_ROOT_ACTION(root, ROBOT_NUM, root_actions)
     i = random.randint(0, len(root.children)-1)
     return root.children[i]
+'''
+
+def BACKUP_ROOT(root)
+    global ROBOT_NUM
+    root_actions = []
+    for i in range(ROBOT_NUM):
+        root_actions.append(-1)
+    ITERATIVE_LOOP_ROOT_ACTION(root, ROBOT_NUM, root_actions)
 
 '''
 #TODO:根据loop的逻辑写两个ITERATIVE LOOP
@@ -786,7 +852,7 @@ def OUTPUT_ROBOT_IN_MAP(robot_poses):
 if __name__=="__main__":
     map = Map()
     intruder = StationaryIntruder()
-    BUDGET = 10000000
+    BUDGET = 1000000
     reward = 0.0
     #初始的机器人的位置是(1, 0), (1, 1)
     root = Node(actions = None, poses = [[1,0],[1,1]], parent = None, time_step = 0, map = map)

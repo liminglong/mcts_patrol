@@ -135,6 +135,7 @@ class Node():
         self.cyclic_head_ID = None
         self.node_ID = node_ID
         self.first_backup_flag = True
+        self.is_added_as_child = False
         self.is_fully_expanded = False#TODO:fully_expanded 初始化设置为False
         if(time_step == None):
             time_step = 0#default parameter
@@ -245,10 +246,10 @@ class Node():
             GLOBAL_ID += 1       
             self_ID = self.node_ID                
             if self.first_backup_flag == True:
-                CHILDREN_DICT[self_ID] = [temp_child]
+                CHILDREN_DICT[self_ID] = [child]
                 self.first_backup_flag = False
             elif self.first_backup_flag == False:
-                CHILDREN_DICT[self_ID].append(temp_child) 
+                CHILDREN_DICT[self_ID].append(child) 
     
     
     def check_bump(self, poses):
@@ -330,6 +331,13 @@ class Node():
         else:
             return False
 
+    def set_is_added_as_child(self, value):
+        self.is_added_as_child = value
+
+    def get_is_added_as_child(self):
+        return self.is_added_as_child
+
+
     def check_is_fully_expanded(self):
         #To be verified: Version 0 of mucts_patrol, all of the nodes are fully expanded
         if(self.first_backup_flag == True):
@@ -340,7 +348,7 @@ class Node():
             all_children_len = len(CHILDREN_DICT[self.node_ID])
             if(expanded_children_len < all_children_len):
                 self.is_fully_expanded = False
-            elif(expanded_children_len = all_children_len):
+            elif(expanded_children_len == all_children_len):
                 self.is_fully_expanded = True
             elif(expanded_children_len > all_children_len):
                 print "Error! expanded_children_len should be smaller than all_children_len."
@@ -350,14 +358,13 @@ class Node():
 #global functions
 #UCT search
 #def SELECT(budget, root):
-#TODO:关于深度拷贝的检查，看到了这里。
 def SELECT(root):
     #pass
     global NEG_INFINITY
     selected_node = Node()
     global_ucb = NEG_INFINITY
     temp_ucb = NEG_INFINITY
-    temp_children = root.children #'children' is a list
+    temp_children = root.children #TODO:root has already been fully expanded already.
     #print "244: SELECT 1"
     while(len(temp_children) != 0):
         #print "246: SELECT while"
@@ -377,6 +384,12 @@ def SELECT(root):
         #print "len(temp_children):"
         #print len(temp_children)
     return selected_node   
+  
+      
+      
+      
+      
+      
   
 def ITERATIVE_LOOP(temp_node, cycles, temp_actions):
     global ROBOT_NUM
@@ -511,7 +524,21 @@ def EXPAND_ROOT(root):
     return root.children[i]
 '''
 
-def BACKUP_ROOT(root)
+def EXPAND(node):
+    if node.first_backup_flag == True:
+        print "Error! Expand before backup."
+        sys.exit(1)#异常退出
+    if node.check_is_fully_expanded() == True:
+        print "Error! Expand the fulle-expanded node."
+        sys.exit(1)
+    else:
+        for i in range(len(CHILDREN_DICT[node.node_ID])):
+            if CHILDREN_DICT[node.node_ID][i].get_is_added_as_child() == False:
+                node.children.append(CHILDREN_DICT[node.node_ID][i])
+                CHILDREN_DICT[node.node_ID][i].set_is_added_as_child(True)
+                return CHILDREN_DICT[node.node_ID][i]
+
+def BACKUP_ROOT(root):
     global ROBOT_NUM
     root_actions = []
     for i in range(ROBOT_NUM):
@@ -847,8 +874,36 @@ def OUTPUT_ROBOT_IN_MAP(robot_poses):
         temp_map[robot_poses[i][0]][robot_poses[i][1]] = "R" + str(i)
     print temp_map
 
+#重新写一个main函数。
+if __name__ == "__main__":
+    map = Map()
+    intruder = StationaryIntruder()
+    BUDGET = 1000000
+    reward = 0.0
+    #初始的机器人的位置是(1, 0), (1, 1)
+    root = Node(actions = None, poses = [[1,0],[1,1]], parent = None, time_step = 0, map = map)
+    #root = Node(actions = None, poses = [[0,0],[0,24]], parent = None, time_step = 0, map = map)
+    root.node_ID = -1    
+    NODE_DICT[-1] = root
+    #print "Hello 1"    
+    BACKUP_ROOT(root)
+    print "len(CHILDREN_DICT[root.node_ID]): "
+    print len(CHILDREN_DICT[root.node_ID])
+    
+    cycle_count = 0    
+    
+    selected_node = EXPAND(root)
+    reward = ROLLOUT(root, intruder)
+    BACK_PROPAGATION(selected_node, reward)
+    
+    #TODO: 应该在这里只需要重写SELECT方法就可以了。    
+    
+    while(cycle_count < BUDGET):
+        intruder.update_initial_pose()
+        leaf_node = SELECT(root)
 
-        
+
+'''        
 if __name__=="__main__":
     map = Map()
     intruder = StationaryIntruder()
@@ -873,12 +928,6 @@ if __name__=="__main__":
         print "intruder.pose"
         print intruder.pose
         leaf_node = SELECT(root)#TODO:这里需要判断node是不是时间终止节点。
-        '''
-        print "639, leaf_node.actions: "
-        print leaf_node.actions
-        print "641, leaf_node.poses: "
-        print leaf_node.poses
-        '''    
         print "Hello 4"
         if leaf_node.time_step == intruder.time_e + intruder.time_p:
             print "Hello 5"
@@ -899,16 +948,6 @@ if __name__=="__main__":
                 print "Hello 7 end"
             else:
                 NOT_CYCLIC_NUM += 1 
-                '''
-                print "not cyclic"
-                print "Hello 8"
-                
-                print "664, leaf_node.actions: "
-                print leaf_node.actions
-                print "666, leaf_node.poses: "
-                print leaf_node.poses
-                '''
-
                 added_node = EXPAND(leaf_node)#TODO:测试过程中，这一步极其花费时间。？？？？？？？？
                 #TODO：leaf_node是不是一定不是cyclic arm？？？？？？？？？？？
                 print len(leaf_node.children)#只有12的是肯定不对的。
@@ -931,7 +970,7 @@ if __name__=="__main__":
     print CYCLIC_NUM
     print "NOT_CYCLIC_NUM: "
     print NOT_CYCLIC_NUM
-
+'''
     
     
     

@@ -25,7 +25,7 @@ GLOBAL_ID = 0 #维护一个全局ＩＤ，每个ｎｏｄｅ有且仅有一个�
 
 
 NODE_DICT = {}#key is node_ID, value is node name.
-CHILDREN_DICT = {}#key is node_ID, value is a list.
+CHILDREN_DICT_WITHOUT_CYCLIC_ARM = {}#key is node_ID, value is a list.
 
 CYCLIC_NUM = 0
 NOT_CYCLIC_NUM = 0
@@ -144,6 +144,7 @@ class Node():
             self.map = Map()#default parameter      
     
     #已经检查过的child
+    '''
     def add_child(self, child):
         global GLOBAL_ID
         global NODE_DICT
@@ -152,22 +153,23 @@ class Node():
         self.children.append(temp_child) 
         NODE_DICT[GLOBAL_ID] = temp_child
         GLOBAL_ID += 1    
+    '''
     
     def backup_child(self, child):
         global GLOBAL_ID
         global NODE_DICT
-        global CHILDREN_DICT
+        global CHILDREN_DICT_WITHOUT_CYCLIC_ARM
         temp_child = copy.deepcopy(child)
         temp_child.node_ID = GLOBAL_ID
         NODE_DICT[GLOBAL_ID] = temp_child
         GLOBAL_ID += 1                
         self_ID = self.node_ID                
         if self.first_backup_flag == True:
-            CHILDREN_DICT[self_ID] = [temp_child]
+            CHILDREN_DICT_WITHOUT_CYCLIC_ARM[self_ID] = [temp_child]
             self.first_backup_flag = False
         elif self.first_backup_flag == False:
-            CHILDREN_DICT[self_ID].append(temp_child)
-    
+            CHILDREN_DICT_WITHOUT_CYCLIC_ARM[self_ID].append(temp_child)
+    '''
     #根据当前节点的actions和poses算出child_poses,　child_actions经过传参得到,再算出grand_son，检查合法性。
     def check_and_add_child_actions(self,child_actions):
         global ROBOT_NUM
@@ -190,7 +192,7 @@ class Node():
             self.children.append(child)
             NODE_DICT[GLOBAL_ID] = child
             GLOBAL_ID +=1
-
+    '''
             
 
     def check_and_backup_child_actions(self, child_actions):
@@ -215,10 +217,10 @@ class Node():
             GLOBAL_ID +=1        
             self_ID = self.node_ID                
             if self.first_backup_flag == True:
-                CHILDREN_DICT[self_ID] = [temp_child]
+                CHILDREN_DICT_WITHOUT_CYCLIC_ARM[self_ID] = [child]
                 self.first_backup_flag = False
             elif self.first_backup_flag == False:
-                CHILDREN_DICT[self_ID].append(temp_child)
+                CHILDREN_DICT_WITHOUT_CYCLIC_ARM[self_ID].append(child)
                                 
     def check_and_add_child_actions_poses(self, child_actions, child_poses):
         global GLOBAL_ID
@@ -246,10 +248,10 @@ class Node():
             GLOBAL_ID += 1       
             self_ID = self.node_ID                
             if self.first_backup_flag == True:
-                CHILDREN_DICT[self_ID] = [child]
+                CHILDREN_DICT_WITHOUT_CYCLIC_ARM[self_ID] = [child]
                 self.first_backup_flag = False
             elif self.first_backup_flag == False:
-                CHILDREN_DICT[self_ID].append(child) 
+                CHILDREN_DICT_WITHOUT_CYCLIC_ARM[self_ID].append(child) 
     
     
     def check_bump(self, poses):
@@ -285,7 +287,12 @@ class Node():
         visits_child = self.visits
         w_pi = self.reward
         return w_pi + SCALAR * math.sqrt((math.log(visits_parent))/visits_child)
+    '''
+    def create_cyclic_sibling_arm(self,cyclic_head_ID):
+        pass
     
+    '''
+    #TODO:额外的Ｃｈｉｌｄｒｅｎ就是在create_cyclic_sibling_arm里面加进来的。
     def create_cyclic_sibling_arm(self, cyclic_head_ID):
         global GLOBAL_ID
         #print "create 1"
@@ -305,6 +312,7 @@ class Node():
         #print "create 2"
         new_node.node_ID = GLOBAL_ID
         NODE_DICT[GLOBAL_ID] = new_node
+        #TODO:改进这里比较合适。
         temp_parent.children.append(new_node)
         GLOBAL_ID += 1
         #print "create 3"
@@ -341,23 +349,46 @@ class Node():
     def check_is_fully_expanded(self):
         #To be verified: Version 0 of mucts_patrol, all of the nodes are fully expanded
         if(self.first_backup_flag == True):
-            print "Error! Check whether fully expanded before backup."
+            print "Error! Check whether node is fully-expanded before backup."
             sys.exit(1)#异常退出
+        elif(self.get_is_cyclic_arm() == True):
+            print "Error! cyclic_arm need not check_is_fully_expanded."
+            sys.exit(1)
         else:
-            expanded_children_len = len(self.children)
-            all_children_len = len(CHILDREN_DICT[self.node_ID])
+            is_fully_expanded_flag = True
+            for i in range(len(CHILDREN_DICT_WITHOUT_CYCLIC_ARM[self.node_ID])):
+                if CHILDREN_DICT_WITHOUT_CYCLIC_ARM[self.node_ID][i].get_is_added_as_child() == False:
+                    is_fully_expanded_flag = False
+            
+            if is_fully_expanded_flag:
+                self.is_fully_expanded = True
+            else:
+                self.is_fully_expanded = False             
+            
+            '''
+            all_children_len = len(CHILDREN_DICT_WITHOUT_CYCLIC_ARM[self.node_ID])
             if(expanded_children_len < all_children_len):
+                print "expanded_children_len: "
+                print expanded_children_len
+                #print "all_children_len: "
+                #print all_children_len
                 self.is_fully_expanded = False
             elif(expanded_children_len == all_children_len):
+                print "expanded_children_len: "
+                print expanded_children_len
+                #print "all_children_len: "
+                #print all_children_len
                 self.is_fully_expanded = True
             elif(expanded_children_len > all_children_len):
                 print "Error! expanded_children_len should be smaller than all_children_len."
                 sys.exit(1)#异常退出
+            '''
             return self.is_fully_expanded
 
 #global functions
 #UCT search
 #def SELECT(budget, root):
+'''
 def SELECT(root):
     #pass
     global NEG_INFINITY
@@ -384,12 +415,86 @@ def SELECT(root):
         #print "len(temp_children):"
         #print len(temp_children)
     return selected_node   
-  
+'''
+#TODO:２０１７年１月８日１１点２１分，下午优先改ｓｅｌｅｃｔ的部分。     
+''' 
+def SELECT(node):
+    #pass
+    global NEG_INFINITY
+    selected_node = Node()
+    global_ucb = NEG_INFINITY
+    temp_ucb = NEG_INFINITY
+    temp_children = root.children #TODO:root has already been fully expanded already.
+    #print "244: SELECT 1"
+    while(len(temp_children) != 0):
+        #print "246: SELECT while"
+        for i in range(len(temp_children)):   
+            temp_ucb = temp_children[i].ucb()
+            #print temp_ucb
+            if(global_ucb < temp_ucb or global_ucb == temp_ucb):
+                #print "SELECT if"
+                global_ucb = temp_ucb
+
+                selected_node = temp_children[i]
+        print "SELECT 2"    
+        print "每一层被选中的global_ucb: "
+        print global_ucb    
+        temp_children = selected_node.children
+        global_ucb = NEG_INFINITY
+        #print "len(temp_children):"
+        #print len(temp_children)
+    return selected_node 
+'''
       
-      
-      
-      
-      
+def SELECT(node, intruder):
+    global NEG_INFINITY
+    global_ucb = NEG_INFINITY
+    temp_ucb = NEG_INFINITY
+    selected_node = node
+    temp_children = selected_node.children #TODO:root has already been fully expanded already.
+    #print "244: SELECT 1"
+    time_e = intruder.get_time_e()
+    time_p = intruder.get_time_p()
+    while(True):
+        if selected_node.time_step == time_e + time_p:
+            return selected_node
+        elif selected_node.time_step > time_e + time_p:
+            print "Error! selected_node.time_step is bigger than (time_e + time_p) in def SELECT"
+            sys.exit(1)
+        elif selected_node.is_cyclic_arm == True:
+            return selected_node
+        elif selected_node.time_step < time_e + time_p:    
+            if selected_node.check_is_fully_expanded():    
+                for i in range(len(temp_children)):
+                    temp_ucb = temp_children[i].ucb()
+                    if(global_ucb < temp_ucb or global_ucb == temp_ucb):
+                        global_ucb = temp_ucb
+                        selected_node = temp_children[i]
+                temp_children = selected_node.children
+                global_ucb = NEG_INFINITY
+            elif not selected_node.check_is_fully_expanded():
+                return selected_node
+    #如果是完全拓展的children怎么办？CHILDREN里面包括cyclic node，也是一定要在ＳＥＬＥＣＴ内部处理的吧？
+    '''
+    while(len(temp_children) != 0):
+        #print "246: SELECT while"        
+        for i in range(len(temp_children)):   
+            temp_ucb = temp_children[i].ucb()
+            #print temp_ucb
+            if(global_ucb < temp_ucb or global_ucb == temp_ucb):
+                #print "SELECT if"
+                global_ucb = temp_ucb
+
+                selected_node = temp_children[i]
+        print "SELECT 2"    
+        print "每一层被选中的global_ucb: "
+        print global_ucb    
+        temp_children = selected_node.children
+        global_ucb = NEG_INFINITY
+        #print "len(temp_children):"
+        #print len(temp_children)
+    return selected_node     
+    '''
   
 def ITERATIVE_LOOP(temp_node, cycles, temp_actions):
     global ROBOT_NUM
@@ -529,14 +634,15 @@ def EXPAND(node):
         print "Error! Expand before backup."
         sys.exit(1)#异常退出
     if node.check_is_fully_expanded() == True:
-        print "Error! Expand the fulle-expanded node."
+        print "Error! Expand the fully-expanded node."
         sys.exit(1)
     else:
-        for i in range(len(CHILDREN_DICT[node.node_ID])):
-            if CHILDREN_DICT[node.node_ID][i].get_is_added_as_child() == False:
-                node.children.append(CHILDREN_DICT[node.node_ID][i])
-                CHILDREN_DICT[node.node_ID][i].set_is_added_as_child(True)
-                return CHILDREN_DICT[node.node_ID][i]
+        for i in range(len(CHILDREN_DICT_WITHOUT_CYCLIC_ARM[node.node_ID])):
+            if CHILDREN_DICT_WITHOUT_CYCLIC_ARM[node.node_ID][i].get_is_added_as_child() == False:
+                node.children.append(CHILDREN_DICT_WITHOUT_CYCLIC_ARM[node.node_ID][i])
+                CHILDREN_DICT_WITHOUT_CYCLIC_ARM[node.node_ID][i].set_is_added_as_child(True)
+                BACKUP(CHILDREN_DICT_WITHOUT_CYCLIC_ARM[node.node_ID][i])
+                return CHILDREN_DICT_WITHOUT_CYCLIC_ARM[node.node_ID][i]
 
 def BACKUP_ROOT(root):
     global ROBOT_NUM
@@ -811,8 +917,12 @@ def BACK_PROPAGATION(leaf_node, reward):
             #print "while 1"
             if (not leaf_node.get_is_cyclic_arm()):
                 temp_node_ID = temp_node.node_ID
+                #print "create cylic sibling arm for one time"
+                #print leaf_node.poses
+                #print leaf_node.actions
                 leaf_node.create_cyclic_sibling_arm(cyclic_head_ID = temp_node_ID)#it is an arm
-            #TODO:如果temp_node本身就是一个cyclicarm，不再向上创建cyclic arm
+            #如果temp_node本身就是一个cyclicarm，不再向上创建cyclic arm,这点不用太考虑，因为ｃｙｃｌｉｃ　ａｒｍ本身就是向上访问不到的。
+            
         #print "while 2"
         temp_node.update(reward)
         temp_node = temp_node.parent
@@ -882,26 +992,60 @@ if __name__ == "__main__":
     reward = 0.0
     #初始的机器人的位置是(1, 0), (1, 1)
     root = Node(actions = None, poses = [[1,0],[1,1]], parent = None, time_step = 0, map = map)
-    #root = Node(actions = None, poses = [[0,0],[0,24]], parent = None, time_step = 0, map = map)
+    #root = Node(actions = None, poses = [[0,0],[1,1]], parent = None, time_step = 0, map = map)
     root.node_ID = -1    
     NODE_DICT[-1] = root
     #print "Hello 1"    
     BACKUP_ROOT(root)
-    print "len(CHILDREN_DICT[root.node_ID]): "
-    print len(CHILDREN_DICT[root.node_ID])
+    print "len(CHILDREN_DICT_WITHOUT_CYCLIC_ARM[root.node_ID]): "
+    print len(CHILDREN_DICT_WITHOUT_CYCLIC_ARM[root.node_ID])
     
-    cycle_count = 0    
-    
+    '''
     selected_node = EXPAND(root)
-    reward = ROLLOUT(root, intruder)
+    reward = ROLLOUT(selected_node, intruder)
     BACK_PROPAGATION(selected_node, reward)
     
-    #TODO: 应该在这里只需要重写SELECT方法就可以了。    
+    '''
+    #先把root的所有child都add进来，并且通过rollout和backpropagation给一个初始的reward。
+    temp_count = 0 
+    for i in range(len(CHILDREN_DICT_WITHOUT_CYCLIC_ARM[root.node_ID])):   
+        temp_count +=1     
+        print "temp_count"
+        print temp_count
+        selected_node = EXPAND(root)
+        reward = ROLLOUT(selected_node, intruder)
+        BACK_PROPAGATION(selected_node, reward)
     
+    cycle_count = 0        
     while(cycle_count < BUDGET):
         intruder.update_initial_pose()
-        leaf_node = SELECT(root)
-
+        leaf_node = SELECT(root, intruder)
+        if leaf_node.time_step == intruder.time_e + intruder.time_p:
+            if IS_INTRUDER_CAPTURED(leaf_node, intruder) == True:
+                reward = BONUS
+            else:
+                reward = PENALTY
+            BACK_PROPAGATION(leaf_node, reward) 
+        elif leaf_node.time_step < intruder.time_e + intruder.time_p:    
+            if leaf_node.get_is_cyclic_arm():
+                CYCLIC_NUM += 1 
+                reward = ROLLOUT(leaf_node, intruder)
+                BACK_PROPAGATION(leaf_node, reward)
+            else:
+                NOT_CYCLIC_NUM += 1 
+                added_node = EXPAND(leaf_node)
+                reward = ROLLOUT(added_node, intruder)
+                BACK_PROPAGATION(added_node, reward)
+        elif leaf_node.time_step > intruder.time_e + intruder.time_p:
+            print "Error, leaf_node.time_step should be smaller than or equal to (intruder.time_e+intruder.time_p)."
+            sys.exit(1)           
+    
+    OUTPUT_ROBOT_TRACK(root)
+        
+    print "CYCLIC_NUM: "    
+    print CYCLIC_NUM
+    print "NOT_CYCLIC_NUM: "
+    print NOT_CYCLIC_NUM
 
 '''        
 if __name__=="__main__":
